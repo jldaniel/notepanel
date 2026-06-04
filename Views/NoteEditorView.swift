@@ -4,27 +4,27 @@ import SwiftUI
 struct NoteEditorView: View {
     @Bindable var note: Note
     var onDone: () -> Void
+    var autoFocusContent = true
 
-    @FocusState private var focusedField: Field?
+    @FocusState private var isContentFocused: Bool
 
-    private enum Field {
-        case title
-        case content
-    }
+    private static let editorMinHeight: CGFloat = 100
+    private static let editorMaxHeight: CGFloat = 400
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
-            TextField("Title", text: $note.title)
-                .textFieldStyle(.plain)
-                .font(.headline)
-                .focused($focusedField, equals: .title)
-
             GrowingTextEditor(
                 text: $note.content,
-                isFocused: focusedField == .content,
-                minHeight: 100
+                isFocused: isContentFocused,
+                minHeight: Self.editorMinHeight,
+                maxHeight: Self.editorMaxHeight
             )
-            .frame(maxWidth: .infinity, minHeight: 100, alignment: .topLeading)
+            .frame(
+                maxWidth: .infinity,
+                minHeight: Self.editorMinHeight,
+                maxHeight: Self.editorMaxHeight,
+                alignment: .topLeading
+            )
 
             HStack {
                 Spacer()
@@ -38,7 +38,7 @@ struct NoteEditorView: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .contentShape(Rectangle())
         .onAppear {
-            focusedField = note.title.isEmpty ? .title : .content
+            isContentFocused = autoFocusContent
         }
         .onExitCommand {
             note.touch()

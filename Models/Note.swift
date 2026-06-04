@@ -8,6 +8,8 @@ final class Note {
     var content: String
     var sortIndex: Int
     var colorIndex: Int?
+    /// `nil` means expanded for notes created before this field existed.
+    var isCollapsed: Bool?
     var createdAt: Date
     var updatedAt: Date
 
@@ -17,6 +19,7 @@ final class Note {
         content: String = "",
         sortIndex: Int = 0,
         colorIndex: Int? = nil,
+        isCollapsed: Bool? = false,
         createdAt: Date = .now,
         updatedAt: Date = .now
     ) {
@@ -25,6 +28,7 @@ final class Note {
         self.content = content
         self.sortIndex = sortIndex
         self.colorIndex = colorIndex
+        self.isCollapsed = isCollapsed
         self.createdAt = createdAt
         self.updatedAt = updatedAt
     }
@@ -35,5 +39,10 @@ final class Note {
 
     var resolvedColorIndex: Int {
         colorIndex ?? 0
+    }
+
+    var collapsed: Bool {
+        get { isCollapsed ?? false }
+        set { isCollapsed = newValue }
     }
 }

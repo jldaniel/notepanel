@@ -5,6 +5,7 @@ struct GrowingTextEditor: NSViewRepresentable {
     @Binding var text: String
     var isFocused: Bool
     var minHeight: CGFloat = 100
+    var maxHeight: CGFloat = 400
 
     func makeNSView(context: Context) -> TextEditorContainer {
         let textView = NSTextView()
@@ -44,23 +45,33 @@ struct GrowingTextEditor: NSViewRepresentable {
     func sizeThatFits(_ proposal: ProposedViewSize, nsView: TextEditorContainer, context: Context) -> CGSize? {
         guard let width = proposal.width, width.isFinite, width > 0 else { return nil }
 
+        let cap = effectiveMaxHeight(proposal: proposal)
         let textView = nsView.textView
         let inset = textView.textContainerInset
         let containerWidth = width - inset.width * 2
         textView.textContainer?.containerSize = NSSize(
             width: containerWidth,
-            height: CGFloat.greatestFiniteMagnitude
+            height: cap
         )
 
         guard let layoutManager = textView.layoutManager,
               let textContainer = textView.textContainer else {
-            return CGSize(width: width, height: minHeight)
+            return CGSize(width: width, height: cap)
         }
 
         layoutManager.ensureLayout(for: textContainer)
         let usedHeight = layoutManager.usedRect(for: textContainer).height
-        let height = max(minHeight, usedHeight + inset.height * 2)
+        let contentHeight = max(minHeight, usedHeight + inset.height * 2)
+        let height = min(contentHeight, cap)
         return CGSize(width: width, height: height)
+    }
+
+    private func effectiveMaxHeight(proposal: ProposedViewSize) -> CGFloat {
+        var cap = max(maxHeight, minHeight)
+        if let proposedHeight = proposal.height, proposedHeight.isFinite, proposedHeight > 0 {
+            cap = min(cap, proposedHeight)
+        }
+        return max(cap, minHeight)
     }
 
     func makeCoordinator() -> Coordinator {
