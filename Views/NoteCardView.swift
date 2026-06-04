@@ -10,19 +10,39 @@ struct NoteCardView: View {
     let onEndEditing: () -> Void
     let onDragStart: () -> Void
 
+    @FocusState private var isTitleFocused: Bool
+
     private var noteColor: NotePalette.NoteColor {
         NotePalette.color(at: note.resolvedColorIndex)
     }
 
+    private var displayTitle: String {
+        note.title.isEmpty ? "Untitled" : note.title
+    }
+
+    private var shouldFocusTitle: Bool {
+        note.title.isEmpty || note.title == "New Note"
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            if isEditing {
-                NoteEditorView(note: note, onDone: onEndEditing)
-                    .padding(12)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .contentShape(Rectangle())
-            } else {
-                collapsedCard
+            titleBar
+
+            if !note.collapsed {
+                if isEditing {
+                    NoteEditorView(
+                        note: note,
+                        onDone: onEndEditing,
+                        autoFocusContent: !shouldFocusTitle
+                    )
+                        .padding(12)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .contentShape(Rectangle())
+                } else {
+                    contentBody
+                        .contentShape(Rectangle())
+                        .onTapGesture(perform: onBeginEditing)
+                }
             }
         }
         .background(noteColor.background)
@@ -35,15 +55,11 @@ struct NoteCardView: View {
         .contextMenu {
             Button("Delete", role: .destructive) { deleteNote() }
         }
-    }
-
-    private var collapsedCard: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            titleBar
-            contentBody
+        .onAppear(perform: focusTitleIfNeeded)
+        .onChange(of: isEditing) { _, editing in
+            guard editing else { return }
+            focusTitleIfNeeded()
         }
-        .contentShape(Rectangle())
-        .onTapGesture(perform: onBeginEditing)
     }
 
     private var titleBar: some View {
@@ -52,10 +68,17 @@ struct NoteCardView: View {
                 .font(.caption)
                 .foregroundStyle(.secondary)
 
-            Text(note.title.isEmpty ? "Untitled" : note.title)
-                .font(.headline)
-                .lineLimit(1)
+            titleContent
                 .frame(maxWidth: .infinity, alignment: .leading)
+
+            Button(action: toggleCollapse) {
+                Image(systemName: note.collapsed ? "chevron.right" : "chevron.down")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.secondary)
+                    .frame(width: 20, height: 20)
+            }
+            .buttonStyle(.plain)
+            .help(note.collapsed ? "Expand note" : "Collapse note")
 
             Button(action: deleteNote) {
                 Image(systemName: "xmark.circle.fill")
@@ -63,6 +86,7 @@ struct NoteCardView: View {
             }
             .buttonStyle(.plain)
             .opacity(0.6)
+            .help("Delete note")
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 8)
@@ -71,6 +95,23 @@ struct NoteCardView: View {
         .onDrag {
             onDragStart()
             return NSItemProvider(object: note.id.uuidString as NSString)
+        }
+    }
+
+    @ViewBuilder
+    private var titleContent: some View {
+        if isEditing {
+            TextField("Title", text: $note.title)
+                .textFieldStyle(.plain)
+                .font(.headline)
+                .focused($isTitleFocused)
+        } else {
+            Text(displayTitle)
+                .font(.headline)
+                .lineLimit(1)
+                .foregroundStyle(note.title.isEmpty ? .secondary : .primary)
+                .contentShape(Rectangle())
+                .onTapGesture(perform: onBeginEditing)
         }
     }
 
@@ -89,7 +130,24 @@ struct NoteCardView: View {
         .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
     }
 
+    private func toggleCollapse() {
+        if isEditing, !note.collapsed {
+            onEndEditing()
+        }
+        note.collapsed.toggle()
+        note.touch()
+        try? modelContext.save()
+    }
+
+    private func focusTitleIfNeeded() {
+        guard isEditing, shouldFocusTitle else { return }
+        isTitleFocused = true
+    }
+
     private func deleteNote() {
+        if isEditing {
+            onEndEditing()
+        }
         modelContext.delete(note)
         try? modelContext.save()
     }

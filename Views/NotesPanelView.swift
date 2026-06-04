@@ -22,40 +22,39 @@ struct NotesPanelView: View {
                     emptyState
                 } else {
                     ScrollView {
-                        ZStack(alignment: .top) {
-                            Color.clear
-                                .frame(maxWidth: .infinity, maxHeight: .infinity)
-                                .contentShape(Rectangle())
-                                .onTapGesture {
-                                    endEditing()
-                                }
-                                .allowsHitTesting(editingNoteID != nil)
-
-                            LazyVStack(spacing: 12) {
-                                ForEach(notes, id: \.id) { note in
-                                    NoteCardView(
-                                        note: note,
-                                        isEditing: editingNoteID == note.id,
-                                        isDragging: draggedNoteID == note.id,
-                                        onBeginEditing: { beginEditing(note) },
-                                        onEndEditing: endEditing,
-                                        onDragStart: { draggedNoteID = note.id }
+                        LazyVStack(spacing: 12) {
+                            ForEach(notes, id: \.id) { note in
+                                NoteCardView(
+                                    note: note,
+                                    isEditing: editingNoteID == note.id,
+                                    isDragging: draggedNoteID == note.id,
+                                    onBeginEditing: { beginEditing(note) },
+                                    onEndEditing: endEditing,
+                                    onDragStart: { draggedNoteID = note.id }
+                                )
+                                .onDrop(
+                                    of: [.plainText],
+                                    delegate: NoteDropDelegate(
+                                        targetNote: note,
+                                        getNotes: { notes },
+                                        draggedNoteID: $draggedNoteID,
+                                        modelContext: modelContext
                                     )
-                                    .onDrop(
-                                        of: [.plainText],
-                                        delegate: NoteDropDelegate(
-                                            targetNote: note,
-                                            getNotes: { notes },
-                                            draggedNoteID: $draggedNoteID,
-                                            modelContext: modelContext
-                                        )
-                                    )
-                                }
+                                )
                             }
-                            .padding(.top, 16)
-                            .padding(.trailing, 16)
-                            .padding(.bottom, 16)
+
+                            if editingNoteID != nil {
+                                Color.clear
+                                    .frame(maxWidth: .infinity, minHeight: 120)
+                                    .contentShape(Rectangle())
+                                    .onTapGesture {
+                                        endEditing()
+                                    }
+                            }
                         }
+                        .padding(.top, 16)
+                        .padding(.trailing, 16)
+                        .padding(.bottom, 16)
                     }
                 }
             }

@@ -46,7 +46,9 @@ open .build/DerivedData/Build/Products/Debug/NotePanel.app
 - **Right-click** the menu bar icon for the full menu.
 - **⌘⇧P** toggles the panel globally (even when another app is focused).
 - **⌘N** creates a new note when NotePanel's menu is active.
-- **Click** anywhere on a note to edit; **Done**, **Escape**, or **⌘Return** saves.
+- **Click** a note title or body to edit; **Done**, **Escape**, or **⌘Return** saves.
+- Edit the note title directly in the card header. Titles are plain text and do not render Markdown.
+- Use the chevron in a note header to collapse or expand a note. Collapse state is saved locally with the note.
 - Drag a note by its **title bar** to reorder.
 - Delete via the **×** button or context menu.
 - **Preferences…** (`⌘,`) adjusts panel width, top spacing, and launch at login.
@@ -86,6 +88,8 @@ For a drag-to-Applications disk image on your machine:
 ./scripts/make-dmg.sh
 open NotePanel-*.dmg
 ```
+
+The DMG filename uses the app version from `Info.plist` (for example, `NotePanel-1.1.dmg`).
 
 DMGs built this way are ad-hoc signed and not notarized. They are meant for personal use or for others building from this repo on their own Mac—not as a pre-built binary you distribute without Apple Developer ID signing and notarization.
 
