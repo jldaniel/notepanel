@@ -24,7 +24,6 @@ struct MarkdownPreviewView: View {
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .textSelection(.enabled)
     }
 
     private static func canRender(_ markdown: String) -> Bool {

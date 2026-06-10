@@ -8,6 +8,7 @@ enum AppSettings {
         static let topInset = "topInset"
         static let panelOpen = "panelOpen"
         static let launchAtLogin = "launchAtLogin"
+        static let toggleHotKey = "toggleHotKey"
     }
 
     static let defaultPanelWidth: CGFloat = 340
@@ -41,6 +42,20 @@ enum AppSettings {
     static var launchAtLogin: Bool {
         get { UserDefaults.standard.bool(forKey: Keys.launchAtLogin) }
         set { UserDefaults.standard.set(newValue, forKey: Keys.launchAtLogin) }
+    }
+
+    static var toggleHotKey: HotKey {
+        get {
+            guard let data = UserDefaults.standard.data(forKey: Keys.toggleHotKey),
+                  let hotKey = try? JSONDecoder().decode(HotKey.self, from: data) else {
+                return .defaultToggle
+            }
+            return hotKey
+        }
+        set {
+            guard let data = try? JSONEncoder().encode(newValue) else { return }
+            UserDefaults.standard.set(data, forKey: Keys.toggleHotKey)
+        }
     }
 
     static var isLaunchAtLoginEnabled: Bool {

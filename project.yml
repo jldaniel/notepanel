@@ -39,6 +39,14 @@ targets:
         ENABLE_HARDENED_RUNTIME: YES
     entitlements:
       path: NotePanel.entitlements
+      properties:
+        com.apple.security.app-sandbox: true
+        # Read-only access to the pre-sandbox notes database for one-time import.
+        # Removable once existing installs have migrated.
+        com.apple.security.temporary-exception.files.home-relative-path.read-only:
+          - /Library/Application Support/default.store
+          - /Library/Application Support/default.store-wal
+          - /Library/Application Support/default.store-shm
 
 schemes:
   NotePanel:

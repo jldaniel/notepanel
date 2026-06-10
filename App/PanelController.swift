@@ -6,6 +6,7 @@ final class PanelController {
     private var panel: KeyablePanel?
     private var hostingController: NSHostingController<AnyView>?
     private let modelContainer: ModelContainer
+    private let interactionModel = PanelInteractionModel()
     private(set) var isVisible = false
     private var preferencesObserver: NSObjectProtocol?
     private var widthObserver: NSObjectProtocol?
@@ -84,6 +85,7 @@ final class PanelController {
         let rootView = AnyView(
             NotesPanelView()
                 .modelContainer(modelContainer)
+                .environment(interactionModel)
         )
         let hosting = NSHostingController(rootView: rootView)
         hosting.view.wantsLayer = true
@@ -150,6 +152,10 @@ final class PanelController {
 
     func hidePanel(animated: Bool = true) {
         guard let panel, let screen = NSScreen.main else { return }
+
+        MainActor.assumeIsolated {
+            interactionModel.endEditing(in: modelContainer.mainContext)
+        }
 
         let endFrame = offScreenFrame(on: screen, visible: false)
 

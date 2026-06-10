@@ -5,11 +5,11 @@ import UniformTypeIdentifiers
 struct NoteDropDelegate: DropDelegate {
     let targetNote: Note
     let getNotes: () -> [Note]
-    @Binding var draggedNoteID: UUID?
+    let interaction: PanelInteractionModel
     let modelContext: ModelContext
 
     func validateDrop(info: DropInfo) -> Bool {
-        draggedNoteID != nil
+        interaction.draggedNoteID != nil
     }
 
     func dropUpdated(info: DropInfo) -> DropProposal? {
@@ -17,7 +17,7 @@ struct NoteDropDelegate: DropDelegate {
     }
 
     func dropEntered(info: DropInfo) {
-        guard let draggedID = draggedNoteID,
+        guard let draggedID = interaction.draggedNoteID,
               draggedID != targetNote.id else { return }
 
         let notes = getNotes()
@@ -28,17 +28,40 @@ struct NoteDropDelegate: DropDelegate {
         let item = ordered.remove(at: fromIndex)
         ordered.insert(item, at: toIndex)
 
+        // Live reorder is visual; the single save happens at drag end.
         for (index, note) in ordered.enumerated() where note.sortIndex != index {
             note.sortIndex = index
             note.touch()
         }
-        try? modelContext.save()
     }
 
     func performDrop(info: DropInfo) -> Bool {
-        draggedNoteID = nil
+        interaction.draggedNoteID = nil
+        modelContext.saveOrReport()
         return true
     }
 
     func dropExited(info: DropInfo) {}
+}
+
+/// Catches drops that land outside any note card (header, gaps, below the list)
+/// so a cancelled or stray drop can never leave a card stuck in its dragging look.
+struct PanelCatchAllDropDelegate: DropDelegate {
+    let interaction: PanelInteractionModel
+    let modelContext: ModelContext
+
+    func validateDrop(info: DropInfo) -> Bool {
+        interaction.draggedNoteID != nil
+    }
+
+    func dropUpdated(info: DropInfo) -> DropProposal? {
+        DropProposal(operation: .move)
+    }
+
+    func performDrop(info: DropInfo) -> Bool {
+        guard interaction.draggedNoteID != nil else { return false }
+        interaction.draggedNoteID = nil
+        modelContext.saveOrReport()
+        return true
+    }
 }
