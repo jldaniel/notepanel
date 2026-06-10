@@ -44,18 +44,18 @@ open .build/DerivedData/Build/Products/Debug/NotePanel.app
 
 - **Left-click** the menu bar icon to toggle the side panel.
 - **Right-click** the menu bar icon for the full menu.
-- **⌘⇧P** toggles the panel globally (even when another app is focused).
+- A global shortcut toggles the panel (even when another app is focused) — **⌘⇧P** by default, configurable in **Preferences…**.
 - **⌘N** creates a new note when NotePanel's menu is active.
 - **Click** a note title or body to edit; **Done**, **Escape**, or **⌘Return** saves.
 - Edit the note title directly in the card header. Titles are plain text and do not render Markdown.
 - Use the chevron in a note header to collapse or expand a note. Collapse state is saved locally with the note.
-- Drag a note by its **title bar** to reorder.
-- Delete via the **×** button or context menu.
+- Drag a note by the **grip icon** (≡) in its header to reorder.
+- Delete via the **×** button or context menu; **Copy Note** in the context menu copies a note as Markdown.
 - **Preferences…** (`⌘,`) adjusts panel width, top spacing, and launch at login.
 
 ## Privacy
 
-Notes are stored locally on your Mac via SwiftData (Application Support). Nothing is sent to a server.
+The app runs in the macOS App Sandbox. Notes are stored locally on your Mac via SwiftData, in the app's container (Application Support/NotePanel). Nothing is sent to a server.
 
 Markdown previews do not load remote images. Links in notes remain clickable and will open in your browser.
 
