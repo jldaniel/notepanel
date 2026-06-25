@@ -6,7 +6,7 @@ struct NoteEditorView: View {
     var onDone: () -> Void
     var autoFocusContent = true
 
-    @FocusState private var isContentFocused: Bool
+    @State private var isContentFocused = false
 
     private static let editorMinHeight: CGFloat = 100
     private static let editorMaxHeight: CGFloat = 400
@@ -15,9 +15,10 @@ struct NoteEditorView: View {
         VStack(alignment: .leading, spacing: 8) {
             GrowingTextEditor(
                 text: $note.content,
-                isFocused: isContentFocused,
+                isFocused: $isContentFocused,
                 minHeight: Self.editorMinHeight,
-                maxHeight: Self.editorMaxHeight
+                maxHeight: Self.editorMaxHeight,
+                onEscape: onDone
             )
             .frame(
                 maxWidth: .infinity,
@@ -28,21 +29,14 @@ struct NoteEditorView: View {
 
             HStack {
                 Spacer()
-                Button("Done") {
-                    note.touch()
-                    onDone()
-                }
-                .keyboardShortcut(.return, modifiers: .command)
+                Button("Done", action: onDone)
+                    .keyboardShortcut(.return, modifiers: .command)
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .contentShape(Rectangle())
         .onAppear {
             isContentFocused = autoFocusContent
-        }
-        .onExitCommand {
-            note.touch()
-            onDone()
         }
     }
 }

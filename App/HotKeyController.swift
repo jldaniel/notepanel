@@ -6,9 +6,12 @@ final class HotKeyController {
     private var eventHandler: EventHandlerRef?
     private static var handler: (() -> Void)?
 
-    func registerTogglePanelHandler(_ handler: @escaping () -> Void) {
-        Self.handler = handler
+    /// Registers the hot key, replacing any previous registration.
+    /// Returns false when the combo could not be registered (e.g. taken by another app).
+    @discardableResult
+    func register(_ hotKey: HotKey, handler: @escaping () -> Void) -> Bool {
         unregister()
+        Self.handler = handler
 
         var eventSpec = EventTypeSpec(
             eventClass: OSType(kEventClassKeyboard),
@@ -23,18 +26,25 @@ final class HotKeyController {
             nil,
             &eventHandler
         )
-        guard installStatus == noErr else { return }
+        guard installStatus == noErr else {
+            unregister()
+            return false
+        }
 
         let hotKeyID = EventHotKeyID(signature: OSType(0x4E504C21), id: 1)
         let registerStatus = RegisterEventHotKey(
-            UInt32(kVK_ANSI_P),
-            UInt32(cmdKey | shiftKey),
+            UInt32(hotKey.keyCode),
+            hotKey.carbonModifiers,
             hotKeyID,
             GetApplicationEventTarget(),
             0,
             &hotKeyRef
         )
-        guard registerStatus == noErr else { return }
+        guard registerStatus == noErr else {
+            unregister()
+            return false
+        }
+        return true
     }
 
     func unregister() {

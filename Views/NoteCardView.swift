@@ -1,16 +1,52 @@
+import ObjectiveC
 import SwiftData
 import SwiftUI
 
+/// Held by the drag's `NSItemProvider`; when the system releases the provider at the
+/// end of the drag session (including Esc-cancel and drops outside the panel), the
+/// deinit clears any leftover drag state. Backstop for the cases SwiftUI gives no
+/// drag-ended callback for.
+final class DragEndSentinel {
+    static var associatedKey: UInt8 = 0
+
+    private let noteID: UUID
+    private let interaction: PanelInteractionModel
+    private let modelContext: ModelContext
+
+    init(noteID: UUID, interaction: PanelInteractionModel, modelContext: ModelContext) {
+        self.noteID = noteID
+        self.interaction = interaction
+        self.modelContext = modelContext
+    }
+
+    deinit {
+        let noteID = noteID
+        let interaction = interaction
+        let modelContext = modelContext
+        DispatchQueue.main.async {
+            guard interaction.draggedNoteID == noteID else { return }
+            interaction.draggedNoteID = nil
+            modelContext.saveOrReport()
+        }
+    }
+}
+
 struct NoteCardView: View {
     @Environment(\.modelContext) private var modelContext
+    @Environment(PanelInteractionModel.self) private var interaction
     @Bindable var note: Note
-    let isEditing: Bool
-    let isDragging: Bool
-    let onBeginEditing: () -> Void
-    let onEndEditing: () -> Void
-    let onDragStart: () -> Void
 
     @FocusState private var isTitleFocused: Bool
+    @State private var isHovering = false
+    @State private var cursorPushed = false
+
+    private var isEditing: Bool {
+        interaction.editingNoteID == note.id
+    }
+
+    private var isDragging: Bool {
+        interaction.draggedNoteID == note.id
+    }
 
     private var noteColor: NotePalette.NoteColor {
         NotePalette.color(at: note.resolvedColorIndex)
@@ -21,7 +57,7 @@ struct NoteCardView: View {
     }
 
     private var shouldFocusTitle: Bool {
-        note.title.isEmpty || note.title == "New Note"
+        interaction.pendingTitleFocusID == note.id
     }
 
     var body: some View {
@@ -32,7 +68,7 @@ struct NoteCardView: View {
                 if isEditing {
                     NoteEditorView(
                         note: note,
-                        onDone: onEndEditing,
+                        onDone: endEditing,
                         autoFocusContent: !shouldFocusTitle
                     )
                         .padding(12)
@@ -40,25 +76,52 @@ struct NoteCardView: View {
                         .contentShape(Rectangle())
                 } else {
                     contentBody
-                        .contentShape(Rectangle())
-                        .onTapGesture(perform: onBeginEditing)
                 }
             }
         }
-        .background(noteColor.background)
+        .background(
+            noteColor.background
+                .overlay(Color.white.opacity(isHovering && !isEditing ? 0.05 : 0))
+        )
         .clipShape(RoundedRectangle(cornerRadius: 10))
         .overlay(
             RoundedRectangle(cornerRadius: 10)
                 .stroke(noteColor.border, lineWidth: 1)
         )
         .opacity(isDragging ? 0.45 : 1)
+        .contentShape(Rectangle())
+        .onTapGesture {
+            // When already editing, this swallows the tap so it can't reach the
+            // panel-level end-editing gesture.
+            if !isEditing {
+                beginEditing()
+            }
+        }
+        .onHover { hovering in
+            isHovering = hovering
+            setPointerCursor(hovering && !isEditing)
+        }
+        .onExitCommand {
+            if isEditing {
+                endEditing()
+            }
+        }
         .contextMenu {
+            Button("Copy Note") {
+                NSPasteboard.general.clearContents()
+                NSPasteboard.general.setString(note.exportMarkdown, forType: .string)
+            }
             Button("Delete", role: .destructive) { deleteNote() }
         }
         .onAppear(perform: focusTitleIfNeeded)
         .onChange(of: isEditing) { _, editing in
-            guard editing else { return }
-            focusTitleIfNeeded()
+            if editing {
+                setPointerCursor(false)
+                focusTitleIfNeeded()
+            }
+        }
+        .onDisappear {
+            setPointerCursor(false)
         }
     }
 
@@ -67,6 +130,10 @@ struct NoteCardView: View {
             Image(systemName: "line.3.horizontal")
                 .font(.caption)
                 .foregroundStyle(.secondary)
+                .frame(width: 24, height: 24)
+                .contentShape(Rectangle())
+                .help("Drag to reorder")
+                .onDrag(makeDragProvider)
 
             titleContent
                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -92,16 +159,29 @@ struct NoteCardView: View {
         .padding(.vertical, 8)
         .background(noteColor.header)
         .contentShape(Rectangle())
-        .onDrag {
-            onDragStart()
-            return NSItemProvider(object: note.id.uuidString as NSString)
-        }
+    }
+
+    private func makeDragProvider() -> NSItemProvider {
+        interaction.draggedNoteID = note.id
+        let provider = NSItemProvider(object: note.exportMarkdown as NSString)
+        let sentinel = DragEndSentinel(
+            noteID: note.id,
+            interaction: interaction,
+            modelContext: modelContext
+        )
+        objc_setAssociatedObject(
+            provider,
+            &DragEndSentinel.associatedKey,
+            sentinel,
+            .OBJC_ASSOCIATION_RETAIN
+        )
+        return provider
     }
 
     @ViewBuilder
     private var titleContent: some View {
         if isEditing {
-            TextField("Title", text: $note.title)
+            TextField("New Note", text: $note.title)
                 .textFieldStyle(.plain)
                 .font(.headline)
                 .focused($isTitleFocused)
@@ -110,8 +190,6 @@ struct NoteCardView: View {
                 .font(.headline)
                 .lineLimit(1)
                 .foregroundStyle(note.title.isEmpty ? .secondary : .primary)
-                .contentShape(Rectangle())
-                .onTapGesture(perform: onBeginEditing)
         }
     }
 
@@ -130,25 +208,42 @@ struct NoteCardView: View {
         .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
     }
 
+    private func beginEditing() {
+        interaction.beginEditing(note, in: modelContext)
+    }
+
+    private func endEditing() {
+        interaction.endEditing(in: modelContext)
+    }
+
     private func toggleCollapse() {
         if isEditing, !note.collapsed {
-            onEndEditing()
+            endEditing()
         }
         note.collapsed.toggle()
         note.touch()
-        try? modelContext.save()
+        modelContext.saveOrReport()
     }
 
     private func focusTitleIfNeeded() {
         guard isEditing, shouldFocusTitle else { return }
         isTitleFocused = true
+        interaction.pendingTitleFocusID = nil
+    }
+
+    private func setPointerCursor(_ active: Bool) {
+        guard active != cursorPushed else { return }
+        cursorPushed = active
+        if active {
+            NSCursor.pointingHand.push()
+        } else {
+            NSCursor.pop()
+        }
     }
 
     private func deleteNote() {
-        if isEditing {
-            onEndEditing()
-        }
+        interaction.cancelEditing(of: note)
         modelContext.delete(note)
-        try? modelContext.save()
+        modelContext.saveOrReport()
     }
 }

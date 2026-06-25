@@ -3,12 +3,13 @@ import SwiftUI
 
 struct GrowingTextEditor: NSViewRepresentable {
     @Binding var text: String
-    var isFocused: Bool
+    @Binding var isFocused: Bool
     var minHeight: CGFloat = 100
     var maxHeight: CGFloat = 400
+    var onEscape: (() -> Void)?
 
     func makeNSView(context: Context) -> TextEditorContainer {
-        let textView = NSTextView()
+        let textView = FocusReportingTextView()
         textView.delegate = context.coordinator
         textView.isEditable = true
         textView.isSelectable = true
@@ -27,18 +28,30 @@ struct GrowingTextEditor: NSViewRepresentable {
             height: CGFloat.greatestFiniteMagnitude
         )
         textView.string = text
+
+        let coordinator = context.coordinator
+        textView.onFocusChange = { coordinator.focusDidChange($0) }
+
         return TextEditorContainer(textView: textView)
     }
 
     func updateNSView(_ container: TextEditorContainer, context: Context) {
-        let textView = container.textView
+        let coordinator = context.coordinator
+        coordinator.text = $text
+        coordinator.isFocused = $isFocused
+        coordinator.onEscape = onEscape
 
+        let textView = container.textView
         if textView.string != text {
             textView.string = text
         }
 
-        if isFocused, textView.window?.firstResponder != textView {
+        // Edge-triggered only: the binding tracks the real first-responder state via
+        // the coordinator, so a focus the user moved elsewhere is never re-grabbed.
+        if isFocused, !coordinator.actualFocus {
             textView.window?.makeFirstResponder(textView)
+        } else if !isFocused, coordinator.actualFocus {
+            textView.window?.makeFirstResponder(nil)
         }
     }
 
@@ -75,7 +88,29 @@ struct GrowingTextEditor: NSViewRepresentable {
     }
 
     func makeCoordinator() -> Coordinator {
-        Coordinator(text: $text)
+        Coordinator(text: $text, isFocused: $isFocused, onEscape: onEscape)
+    }
+
+    /// NSTextView that reports first-responder changes, so SwiftUI focus state can
+    /// follow reality instead of asserting a stale wish (the old focus-steal bug).
+    final class FocusReportingTextView: NSTextView {
+        var onFocusChange: ((Bool) -> Void)?
+
+        override func becomeFirstResponder() -> Bool {
+            let accepted = super.becomeFirstResponder()
+            if accepted {
+                onFocusChange?(true)
+            }
+            return accepted
+        }
+
+        override func resignFirstResponder() -> Bool {
+            let accepted = super.resignFirstResponder()
+            if accepted {
+                onFocusChange?(false)
+            }
+            return accepted
+        }
     }
 
     final class TextEditorContainer: NSView {
@@ -121,14 +156,37 @@ struct GrowingTextEditor: NSViewRepresentable {
 
     final class Coordinator: NSObject, NSTextViewDelegate {
         var text: Binding<String>
+        var isFocused: Binding<Bool>
+        var onEscape: (() -> Void)?
+        private(set) var actualFocus = false
 
-        init(text: Binding<String>) {
+        init(text: Binding<String>, isFocused: Binding<Bool>, onEscape: (() -> Void)?) {
             self.text = text
+            self.isFocused = isFocused
+            self.onEscape = onEscape
+        }
+
+        func focusDidChange(_ focused: Bool) {
+            actualFocus = focused
+            let binding = isFocused
+            DispatchQueue.main.async {
+                if binding.wrappedValue != focused {
+                    binding.wrappedValue = focused
+                }
+            }
         }
 
         func textDidChange(_ notification: Notification) {
             guard let textView = notification.object as? NSTextView else { return }
             text.wrappedValue = textView.string
+        }
+
+        func textView(_ textView: NSTextView, doCommandBy commandSelector: Selector) -> Bool {
+            if commandSelector == #selector(NSResponder.cancelOperation(_:)) {
+                onEscape?()
+                return true
+            }
+            return false
         }
     }
 }

@@ -7,4 +7,7 @@ extension Notification.Name {
     static let resetPanelWidth = Notification.Name("NotePanel.resetPanelWidth")
     static let closePanel = Notification.Name("NotePanel.closePanel")
     static let panelVisibilityChanged = Notification.Name("NotePanel.panelVisibilityChanged")
+    static let persistenceErrorOccurred = Notification.Name("NotePanel.persistenceErrorOccurred")
+    static let hotKeyChanged = Notification.Name("NotePanel.hotKeyChanged")
+    static let hotKeyRegistrationFailed = Notification.Name("NotePanel.hotKeyRegistrationFailed")
 }

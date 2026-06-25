@@ -3,9 +3,8 @@ import SwiftUI
 
 struct NotesPanelView: View {
     @Environment(\.modelContext) private var modelContext
+    @Environment(PanelInteractionModel.self) private var interaction
     @Query(sort: \Note.sortIndex) private var notes: [Note]
-    @State private var editingNoteID: UUID?
-    @State private var draggedNoteID: UUID?
 
     var body: some View {
         HStack(spacing: 0) {
@@ -24,32 +23,16 @@ struct NotesPanelView: View {
                     ScrollView {
                         LazyVStack(spacing: 12) {
                             ForEach(notes, id: \.id) { note in
-                                NoteCardView(
-                                    note: note,
-                                    isEditing: editingNoteID == note.id,
-                                    isDragging: draggedNoteID == note.id,
-                                    onBeginEditing: { beginEditing(note) },
-                                    onEndEditing: endEditing,
-                                    onDragStart: { draggedNoteID = note.id }
-                                )
-                                .onDrop(
-                                    of: [.plainText],
-                                    delegate: NoteDropDelegate(
-                                        targetNote: note,
-                                        getNotes: { notes },
-                                        draggedNoteID: $draggedNoteID,
-                                        modelContext: modelContext
+                                NoteCardView(note: note)
+                                    .onDrop(
+                                        of: [.plainText],
+                                        delegate: NoteDropDelegate(
+                                            targetNote: note,
+                                            getNotes: { notes },
+                                            interaction: interaction,
+                                            modelContext: modelContext
+                                        )
                                     )
-                                )
-                            }
-
-                            if editingNoteID != nil {
-                                Color.clear
-                                    .frame(maxWidth: .infinity, minHeight: 120)
-                                    .contentShape(Rectangle())
-                                    .onTapGesture {
-                                        endEditing()
-                                    }
                             }
                         }
                         .padding(.top, 16)
@@ -59,9 +42,22 @@ struct NotesPanelView: View {
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .contentShape(Rectangle())
+            .onTapGesture {
+                // Clicks anywhere outside a card (header, gaps, below the list)
+                // commit and end the current edit. Card gestures win over this one.
+                interaction.endEditing(in: modelContext)
+            }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(Color(nsColor: .windowBackgroundColor))
+        .onDrop(
+            of: [.plainText],
+            delegate: PanelCatchAllDropDelegate(
+                interaction: interaction,
+                modelContext: modelContext
+            )
+        )
         .onReceive(NotificationCenter.default.publisher(for: .createNewNote)) { _ in
             addNote()
         }
@@ -83,25 +79,16 @@ struct NotesPanelView: View {
     private func addNote() {
         let nextIndex = (notes.map(\.sortIndex).max() ?? -1) + 1
         let note = Note(
-            title: "New Note",
+            title: "",
             content: "",
             sortIndex: nextIndex,
             colorIndex: NotePalette.nextIndex(after: notes)
         )
         modelContext.insert(note)
-        try? modelContext.save()
-        beginEditing(note)
-    }
-
-    private func beginEditing(_ note: Note) {
-        endEditing()
-        editingNoteID = note.id
-    }
-
-    private func endEditing() {
-        guard editingNoteID != nil else { return }
-        try? modelContext.save()
-        editingNoteID = nil
+        modelContext.saveOrReport()
+        // After beginEditing: it ends any previous edit, which clears the pending focus.
+        interaction.beginEditing(note, in: modelContext)
+        interaction.pendingTitleFocusID = note.id
     }
 
     private func resetPanelWidth() {

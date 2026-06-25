@@ -11,6 +11,7 @@ final class MenuBarController: NSObject {
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
         super.init()
         buildMenu()
+        updateToggleShortcut()
         configureStatusItem()
         visibilityObserver = NotificationCenter.default.addObserver(
             forName: .panelVisibilityChanged,
@@ -45,9 +46,8 @@ final class MenuBarController: NSObject {
         let toggleItem = NSMenuItem(
             title: "Show Panel",
             action: #selector(togglePanel),
-            keyEquivalent: "p"
+            keyEquivalent: ""
         )
-        toggleItem.keyEquivalentModifierMask = [.command, .shift]
         toggleItem.target = self
         menu.addItem(toggleItem)
 
@@ -117,6 +117,17 @@ final class MenuBarController: NSObject {
 
     @objc private func quit() {
         NSApp.terminate(nil)
+    }
+
+    /// Mirrors the configured hot key on the menu item. Display-only: status-item
+    /// menus match key equivalents only while open; the real shortcut is the
+    /// Carbon hot key.
+    func updateToggleShortcut() {
+        guard let toggleItem = menu?.item(at: 0) else { return }
+        let hotKey = AppSettings.toggleHotKey
+        let keyName = KeyCodeFormatter.displayString(forKeyCode: hotKey.keyCode)
+        toggleItem.keyEquivalent = keyName.count == 1 ? keyName.lowercased() : ""
+        toggleItem.keyEquivalentModifierMask = hotKey.modifierFlags
     }
 
     func syncToggleMenuTitle() {

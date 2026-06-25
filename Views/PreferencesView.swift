@@ -29,12 +29,7 @@ struct PreferencesView: View {
 
             Section("Shortcuts") {
                 LabeledContent("Toggle panel") {
-                    Text("⌘⇧P")
-                        .foregroundStyle(.secondary)
-                }
-                LabeledContent("New note") {
-                    Text("⌘N")
-                        .foregroundStyle(.secondary)
+                    ShortcutRecorderView()
                 }
             }
 

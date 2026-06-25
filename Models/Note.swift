@@ -45,4 +45,9 @@ final class Note {
         get { isCollapsed ?? false }
         set { isCollapsed = newValue }
     }
+
+    /// Markdown representation used for drag payloads and copy-to-pasteboard.
+    var exportMarkdown: String {
+        title.isEmpty ? content : "# \(title)\n\n\(content)"
+    }
 }
